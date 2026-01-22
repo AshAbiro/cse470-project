@@ -20,6 +20,10 @@ Open: `http://localhost:8000`
 ## API (v1)
 - Base path: `/api/v1`
 - Auth: Sanctum (`/sanctum/csrf-cookie` + login)
+- API spec: `public/openapi.yaml` (see admin page: `/admin/api-docs`)
+
+## Future upgrades
+- See `FUTURE_UPGRADES.md` for roadmap ideas by category.
 
 ## Notes
 - Default DB is SQLite (see `.env`).

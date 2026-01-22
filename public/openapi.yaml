@@ -1,0 +1,334 @@
+openapi: 3.0.3
+info:
+  title: Amusement Park Management System API
+  version: 1.0.0
+  description: >-
+    API for rides, rooms, bookings, and tickets. Auth uses Laravel Sanctum.
+servers:
+  - url: /api/v1
+
+tags:
+  - name: Auth
+  - name: Rides
+  - name: Rooms
+  - name: Bookings
+  - name: Tickets
+
+paths:
+  /profile:
+    get:
+      tags: [Auth]
+      summary: Get the current user profile
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /rides:
+    get:
+      tags: [Rides]
+      summary: List rides
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: List of rides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ride'
+
+  /rides/{ride}:
+    get:
+      tags: [Rides]
+      summary: Get a ride
+      security:
+        - sanctum: []
+      parameters:
+        - name: ride
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Ride details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        '404':
+          description: Ride not found
+
+  /rides/active:
+    get:
+      tags: [Rides]
+      summary: List active rides (public)
+      responses:
+        '200':
+          description: Active rides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ride'
+
+  /rooms:
+    get:
+      tags: [Rooms]
+      summary: List rooms
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: List of rooms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Room'
+
+  /rooms/{room}:
+    get:
+      tags: [Rooms]
+      summary: Get a room
+      security:
+        - sanctum: []
+      parameters:
+        - name: room
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Room details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '404':
+          description: Room not found
+
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: List bookings (scoped for clients)
+      security:
+        - sanctum: []
+      responses:
+        '200':
+          description: Booking groups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingIndex'
+
+    post:
+      tags: [Bookings]
+      summary: Create a booking
+      security:
+        - sanctum: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Booking'
+                  - $ref: '#/components/schemas/RoomBooking'
+                  - $ref: '#/components/schemas/DishBooking'
+                  - $ref: '#/components/schemas/ParkingBooking'
+        '422':
+          description: Validation error
+
+  /tickets:
+    get:
+      tags: [Tickets]
+      summary: List ticket types (public)
+      responses:
+        '200':
+          description: Ticket types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TicketType'
+
+components:
+  securitySchemes:
+    sanctum:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+
+    Ride:
+      type: object
+      properties:
+        id: { type: integer }
+        ticket_uid: { type: string }
+        name: { type: string }
+        price: { type: number, format: float }
+        description: { type: string, nullable: true }
+        image_path: { type: string, nullable: true }
+        min_height: { type: integer, nullable: true }
+        thrill_level: { type: integer, nullable: true }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Room:
+      type: object
+      properties:
+        id: { type: integer }
+        room_number: { type: string }
+        price_per_12h: { type: number, format: float }
+        capacity: { type: integer }
+        status: { type: string }
+        description: { type: string, nullable: true }
+        image_path: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Booking:
+      type: object
+      properties:
+        id: { type: integer }
+        booking_group_id: { type: string, nullable: true }
+        user_id: { type: integer }
+        ticket_type_id: { type: integer, nullable: true }
+        ride_id: { type: integer, nullable: true }
+        quantity: { type: integer }
+        total_price: { type: number, format: float }
+        booking_date: { type: string, format: date-time }
+        status: { type: string }
+        ride: { type: object, nullable: true }
+        ticket_type: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    RoomBooking:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        room_id: { type: integer }
+        check_in_time: { type: string, format: date-time }
+        check_out_time: { type: string, format: date-time }
+        total_price: { type: number, format: float }
+        status: { type: string }
+        room: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DishBooking:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        dish_id: { type: integer }
+        quantity: { type: integer }
+        total_price: { type: number, format: float }
+        booking_date: { type: string, format: date-time }
+        status: { type: string }
+        dish: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ParkingBooking:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        parking_slot_id: { type: integer }
+        date: { type: string, format: date }
+        time_slot: { type: string }
+        status: { type: string }
+        price: { type: number, format: float }
+        slot: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TicketType:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        price: { type: number, format: float }
+        description: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    BookingIndex:
+      type: object
+      properties:
+        rides:
+          type: array
+          items: { $ref: '#/components/schemas/Booking' }
+        rooms:
+          type: array
+          items: { $ref: '#/components/schemas/RoomBooking' }
+        dishes:
+          type: array
+          items: { $ref: '#/components/schemas/DishBooking' }
+        parking:
+          type: array
+          items: { $ref: '#/components/schemas/ParkingBooking' }
+
+    BookingRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [ride, ticket, room, dish, parking]
+        quantity:
+          type: integer
+          minimum: 1
+        ride_id:
+          type: integer
+        ticket_type_id:
+          type: integer
+        room_id:
+          type: integer
+        dish_id:
+          type: integer
+        parking_slot_id:
+          type: integer
+        check_in_time:
+          type: string
+          format: date-time
+        check_out_time:
+          type: string
+          format: date-time
+        time_slot:
+          type: string
+        price:
+          type: number
+          format: float

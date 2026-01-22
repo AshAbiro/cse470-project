@@ -98,6 +98,8 @@ Route::middleware(['auth', 'verified', 'role:admin'])->group(function () {
     Route::get('/admin/park-maintenance', [AdminController::class, 'park_maintenance'])->name('admin.park_maintenance');
     Route::post('/admin/send-maintenance-command', [AdminController::class, 'send_maintenance_command'])->name('admin.send_maintenance_command');
     Route::get('/admin/analytics/data', [AdminController::class, 'get_stats'])->name('admin.analytics.data');
+    Route::get('/admin/audit-logs', [AdminController::class, 'audit_logs'])->name('admin.audit_logs');
+    Route::view('/admin/api-docs', 'admin.api_docs')->name('admin.api_docs');
     Route::delete('/admin/staff-tasks/{id}', [AdminController::class, 'delete_staff_task'])->name('admin.delete_staff_task');
     Route::delete('/admin/my-booking/{type}/{id}', [AdminController::class, 'delete_my_booking'])->name('admin.delete_my_booking');
     Route::post('/admin/my-bookings/bulk-delete', [AdminController::class, 'bulk_delete_my_bookings'])->name('admin.bulk_delete_my_bookings');

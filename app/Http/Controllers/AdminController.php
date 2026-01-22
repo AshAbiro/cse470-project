@@ -7,6 +7,10 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\AnalyticsService;
+use App\Http\Resources\BookingResource;
+use App\Http\Resources\RoomBookingResource;
+use App\Http\Resources\DishBookingResource;
+use App\Http\Resources\ParkingBookingResource;
 use Illuminate\Support\Facades\Cache;
 
 use Illuminate\Support\Facades\Auth;
@@ -339,6 +343,35 @@ class AdminController extends Controller
     {
         return view('admin.map');
     }
+
+    public function audit_logs(Request $request)
+    {
+        $query = \App\Models\AuditLog::with('user')->latest();
+
+        if ($request->filled('action')) {
+            $query->where('action', 'like', '%' . $request->action . '%');
+        }
+
+        if ($request->filled('user')) {
+            $needle = $request->user;
+            $query->whereHas('user', function ($q) use ($needle) {
+                $q->where('name', 'like', '%' . $needle . '%')
+                  ->orWhere('email', 'like', '%' . $needle . '%');
+            });
+        }
+
+        if ($request->filled('from')) {
+            $query->whereDate('created_at', '>=', $request->from);
+        }
+
+        if ($request->filled('to')) {
+            $query->whereDate('created_at', '<=', $request->to);
+        }
+
+        $logs = $query->paginate(25)->withQueryString();
+
+        return view('admin.audit_logs', compact('logs'));
+    }
     public function park_maintenance()
     {
         $rides = \App\Models\Ride::all();
@@ -462,10 +495,10 @@ class AdminController extends Controller
         }
 
         return response()->json([
-            'rides' => $rideQuery->latest()->get(),
-            'rooms' => $roomQuery->latest()->get(),
-            'dishes' => $dishQuery->latest()->get(),
-            'parking' => $parkingQuery->latest()->get(),
+            'rides' => BookingResource::collection($rideQuery->latest()->get())->resolve(),
+            'rooms' => RoomBookingResource::collection($roomQuery->latest()->get())->resolve(),
+            'dishes' => DishBookingResource::collection($dishQuery->latest()->get())->resolve(),
+            'parking' => ParkingBookingResource::collection($parkingQuery->latest()->get())->resolve(),
         ]);
     }
 
@@ -501,7 +534,7 @@ class AdminController extends Controller
                 'status' => 'pending',
             ]);
 
-            return response()->json(['booking' => $booking], 201);
+            return (new BookingResource($booking))->response()->setStatusCode(201);
         }
 
         if ($type === 'ticket' && $request->ticket_type_id) {
@@ -517,7 +550,7 @@ class AdminController extends Controller
                 'status' => 'pending',
             ]);
 
-            return response()->json(['booking' => $booking], 201);
+            return (new BookingResource($booking))->response()->setStatusCode(201);
         }
 
         if ($type === 'room' && $request->room_id) {
@@ -534,7 +567,7 @@ class AdminController extends Controller
                 'status' => 'pending',
             ]);
 
-            return response()->json(['booking' => $booking], 201);
+            return (new RoomBookingResource($booking))->response()->setStatusCode(201);
         }
 
         if ($type === 'dish' && $request->dish_id) {
@@ -550,7 +583,7 @@ class AdminController extends Controller
                 'status' => 'confirmed',
             ]);
 
-            return response()->json(['booking' => $booking], 201);
+            return (new DishBookingResource($booking))->response()->setStatusCode(201);
         }
 
         if ($type === 'parking' && $request->parking_slot_id) {
@@ -563,7 +596,7 @@ class AdminController extends Controller
                 'price' => $request->price ?? 0,
             ]);
 
-            return response()->json(['booking' => $booking], 201);
+            return (new ParkingBookingResource($booking))->response()->setStatusCode(201);
         }
 
         return response()->json(['error' => 'Invalid booking request.'], 422);

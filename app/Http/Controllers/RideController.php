@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ride;
 use App\Services\AuditLogger;
+use App\Http\Resources\RideResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -80,12 +81,12 @@ class RideController extends Controller
 
     public function apiIndex()
     {
-        return response()->json(Ride::orderBy('name')->get());
+        return RideResource::collection(Ride::orderBy('name')->get());
     }
 
     public function apiShow(Ride $ride)
     {
-        return response()->json($ride);
+        return new RideResource($ride);
     }
 
     private function generateUniqueId()

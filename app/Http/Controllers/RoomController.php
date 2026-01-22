@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Room;
 use App\Services\AuditLogger;
+use App\Http\Resources\RoomResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -83,12 +84,12 @@ class RoomController extends Controller
 
     public function apiIndex()
     {
-        return response()->json(Room::orderBy('room_number')->get());
+        return RoomResource::collection(Room::orderBy('room_number')->get());
     }
 
     public function apiShow(Room $room)
     {
-        return response()->json($room);
+        return new RoomResource($room);
     }
 
     private function generateUniqueId()
