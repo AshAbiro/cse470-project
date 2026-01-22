@@ -1,19 +1,22 @@
-﻿# Amusement Park Management System
+# Amusement Park Management System
 
-Laravel-based web application for managing an amusement park with admin, staff, and client portals.
+Laravel web app with admin, staff, and client portals for an amusement park.
 
-## Start here
-- Read `DOCS.md` for setup, configuration, development, API, deployment, and roadmap details.
-- The Quick Start and Setup sections are inside `DOCS.md`.
-- Previous standalone guides are archived in `docs/archive/`.
-
-## Local development (short)
-1. Install PHP dependencies: `composer install`
-2. Create environment file: `copy .env.example .env`
+## Quick start
+1. Install PHP deps: `composer install`
+2. Create env file: `copy .env.example .env`
 3. Generate app key: `php artisan key:generate`
-4. Configure database in `.env`
-5. Run migrations: `php artisan migrate`
+4. Run migrations: `php artisan migrate`
+5. (Optional) Seed demo data: `php artisan db:seed`
 6. Start server: `php -S localhost:8000 -t public/`
 
-## Tests
-- Run all tests: `php artisan test`
+Open: `http://localhost:8000`
+
+## Useful commands
+- Run tests: `php artisan test`
+- Build assets: `npm install` then `npm run build`
+- Dev assets (hot reload): `npm run dev`
+
+## Notes
+- Default DB is SQLite (see `.env`).
+- Seeded demo accounts (if you run the seeder) use password: `password`.
