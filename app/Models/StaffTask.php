@@ -17,12 +17,15 @@ class StaffTask extends Model
         'item_name',
         'description',
         'status',
+        'priority',
+        'due_at',
         'staff_response',
         'completed_at',
     ];
 
     protected $casts = [
         'completed_at' => 'datetime',
+        'due_at' => 'datetime',
     ];
 
     public function staff()

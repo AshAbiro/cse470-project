@@ -25,6 +25,11 @@ class Ride extends Model
         return $this->hasMany(RideRating::class);
     }
 
+    public function bookings()
+    {
+        return $this->hasMany(Booking::class);
+    }
+
     public function averageRating()
     {
         return $this->rideRatings()->avg('rating') ?? 0;

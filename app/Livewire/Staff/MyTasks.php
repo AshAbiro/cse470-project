@@ -59,6 +59,8 @@ class MyTasks extends Component
     public function render()
     {
         $tasks = StaffTask::where('staff_id', Auth::id())
+            ->orderByRaw("CASE status WHEN 'pending' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END")
+            ->orderBy('due_at')
             ->orderBy('created_at', 'desc')
             ->get();
 

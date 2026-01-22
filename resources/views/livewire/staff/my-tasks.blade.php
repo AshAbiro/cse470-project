@@ -50,12 +50,23 @@
                         'bg-navy-100 text-navy-700') }}">
                                                 {{ str_replace('_', ' ', $task->status) }}
                                             </span>
+                                            <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest 
+                                                    {{ $task->priority === 'urgent' ? 'bg-rose-100 text-rose-700' :
+                    ($task->priority === 'high' ? 'bg-amber-100 text-amber-700' :
+                        ($task->priority === 'low' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700')) }}">
+                                                {{ $task->priority ?? 'normal' }}
+                                            </span>
                                             <span
                                                 class="text-xs text-gray-400 font-bold uppercase tracking-tighter">{{ $task->created_at->format('M d, H:i') }}</span>
                                         </div>
                                         <h3 class="text-xl font-black text-navy-900 mb-1 uppercase tracking-tight">
                                             {{ $task->item_name }}</h3>
                                         <p class="text-gray-600 text-sm font-medium leading-relaxed">{{ $task->description }}</p>
+                                        @if($task->due_at)
+                                            <p class="mt-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                                                Due: {{ $task->due_at->format('M d, Y H:i') }}
+                                            </p>
+                                        @endif
 
                                         @if($task->staff_response)
                                             <div

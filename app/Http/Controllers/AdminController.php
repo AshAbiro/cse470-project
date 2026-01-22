@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 
 use App\Models\User;
+use App\Services\AuditLogger;
+use App\Services\AnalyticsService;
+use Illuminate\Support\Facades\Cache;
 
 use Illuminate\Support\Facades\Auth;
 class AdminController extends Controller
@@ -62,7 +65,12 @@ class AdminController extends Controller
     }
     public function analytics()
     {
-        return view('admin.analytics');
+        $summary = Cache::remember('analytics.summary', 60, function () {
+            $service = new AnalyticsService();
+            return $service->getDashboardStats();
+        });
+
+        return view('admin.analytics', compact('summary'));
     }
 
 
@@ -165,6 +173,12 @@ class AdminController extends Controller
             }
         }
 
+        AuditLogger::log('booking.deleted_by_user', [
+            'type' => $type,
+            'booking_group_id' => $id,
+            'user_id' => Auth::id(),
+        ]);
+
         return back()->with('success', 'Booking deleted successfully!');
     }
 
@@ -201,6 +215,12 @@ class AdminController extends Controller
                 ->where('user_id', $userId)
                 ->delete();
         }
+
+        AuditLogger::log('booking.bulk_deleted_by_user', [
+            'type' => $type,
+            'count' => count($ids),
+            'user_id' => $userId,
+        ]);
 
         return back()->with('success', 'Selected bookings deleted successfully!');
     }
@@ -249,6 +269,12 @@ class AdminController extends Controller
             'message' => $msg,
             'type' => 'success',
             'link' => route('client.booking-history'),
+        ]);
+
+        AuditLogger::log('booking.accepted', [
+            'type' => $type,
+            'booking_group_id' => $id,
+            'user_id' => $userId,
         ]);
 
         return back()->with('success', 'Booking accepted and client notified!');
@@ -300,6 +326,12 @@ class AdminController extends Controller
             'link' => route('client.booking-history'),
         ]);
 
+        AuditLogger::log('booking.rejected', [
+            'type' => $type,
+            'booking_group_id' => $id,
+            'user_id' => $userId,
+        ]);
+
         return back()->with('error', 'Booking rejected and client notified.');
     }
 
@@ -330,9 +362,14 @@ class AdminController extends Controller
             'type' => 'required|string',
             'item_id' => 'nullable', // Ride name, Room number, or Dish name
             'report_id' => 'nullable', // ID of the report being resolved
+            'priority' => 'nullable|in:low,normal,high,urgent',
+            'due_at' => 'nullable|date',
         ]);
 
         $staff = \App\Models\User::find($request->staff_id);
+        if (! $staff || $staff->role !== 'staff') {
+            return redirect()->back()->with('error', 'Selected user is not a staff member.');
+        }
         $title = "Maintenance Task: " . ucwords(str_replace('_', ' ', $request->type));
         $message = "";
 
@@ -384,6 +421,8 @@ class AdminController extends Controller
             'item_name' => $request->item_id,
             'description' => $message,
             'status' => 'pending',
+            'priority' => $request->priority ?? 'normal',
+            'due_at' => $request->due_at,
         ]);
 
         \App\Models\Notification::create([
@@ -394,118 +433,293 @@ class AdminController extends Controller
             'link' => route('staff.tasks'),
         ]);
 
+        AuditLogger::log('maintenance.assigned', [
+            'type' => $request->type,
+            'item_id' => $request->item_id,
+            'staff_id' => $request->staff_id,
+            'priority' => $request->priority ?? 'normal',
+            'due_at' => $request->due_at,
+            'report_id' => $request->report_id,
+        ]);
+
         return redirect()->back()->with('success', 'Maintenance command sent and task assigned to ' . $staff->name);
+    }
+
+    public function apiBookings(Request $request)
+    {
+        $user = $request->user();
+
+        $rideQuery = \App\Models\Booking::with(['ride', 'ticketType']);
+        $roomQuery = \App\Models\RoomBooking::with(['room']);
+        $dishQuery = \App\Models\DishBooking::with(['dish']);
+        $parkingQuery = \App\Models\ParkingBooking::with(['slot']);
+
+        if ($user && $user->role === 'client') {
+            $rideQuery->where('user_id', $user->id);
+            $roomQuery->where('user_id', $user->id);
+            $dishQuery->where('user_id', $user->id);
+            $parkingQuery->where('user_id', $user->id);
+        }
+
+        return response()->json([
+            'rides' => $rideQuery->latest()->get(),
+            'rooms' => $roomQuery->latest()->get(),
+            'dishes' => $dishQuery->latest()->get(),
+            'parking' => $parkingQuery->latest()->get(),
+        ]);
+    }
+
+    public function apiStoreBooking(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:ride,ticket,room,dish,parking',
+            'quantity' => 'nullable|integer|min:1',
+            'ride_id' => 'nullable|exists:rides,id',
+            'ticket_type_id' => 'nullable|exists:ticket_types,id',
+            'room_id' => 'nullable|exists:rooms,id',
+            'dish_id' => 'nullable|exists:dishes,id',
+            'parking_slot_id' => 'nullable|exists:parking_slots,id',
+            'check_in_time' => 'nullable|date',
+            'check_out_time' => 'nullable|date|after_or_equal:check_in_time',
+            'time_slot' => 'nullable|string|max:100',
+            'price' => 'nullable|numeric|min:0',
+        ]);
+
+        $userId = $request->user()->id;
+        $type = $request->type;
+
+        if ($type === 'ride' && $request->ride_id) {
+            $ride = \App\Models\Ride::findOrFail($request->ride_id);
+            $quantity = $request->quantity ?? 1;
+
+            $booking = \App\Models\Booking::create([
+                'user_id' => $userId,
+                'ride_id' => $ride->id,
+                'quantity' => $quantity,
+                'total_price' => $ride->price * $quantity,
+                'booking_date' => now(),
+                'status' => 'pending',
+            ]);
+
+            return response()->json(['booking' => $booking], 201);
+        }
+
+        if ($type === 'ticket' && $request->ticket_type_id) {
+            $ticket = \App\Models\TicketType::findOrFail($request->ticket_type_id);
+            $quantity = $request->quantity ?? 1;
+
+            $booking = \App\Models\Booking::create([
+                'user_id' => $userId,
+                'ticket_type_id' => $ticket->id,
+                'quantity' => $quantity,
+                'total_price' => $ticket->price * $quantity,
+                'booking_date' => now(),
+                'status' => 'pending',
+            ]);
+
+            return response()->json(['booking' => $booking], 201);
+        }
+
+        if ($type === 'room' && $request->room_id) {
+            $room = \App\Models\Room::findOrFail($request->room_id);
+            $checkIn = $request->check_in_time ?? now();
+            $checkOut = $request->check_out_time ?? now()->addHours(12);
+
+            $booking = \App\Models\RoomBooking::create([
+                'user_id' => $userId,
+                'room_id' => $room->id,
+                'check_in_time' => $checkIn,
+                'check_out_time' => $checkOut,
+                'total_price' => $room->price_per_12h,
+                'status' => 'pending',
+            ]);
+
+            return response()->json(['booking' => $booking], 201);
+        }
+
+        if ($type === 'dish' && $request->dish_id) {
+            $dish = \App\Models\Dish::findOrFail($request->dish_id);
+            $quantity = $request->quantity ?? 1;
+
+            $booking = \App\Models\DishBooking::create([
+                'user_id' => $userId,
+                'dish_id' => $dish->id,
+                'quantity' => $quantity,
+                'total_price' => $dish->price * $quantity,
+                'booking_date' => now(),
+                'status' => 'confirmed',
+            ]);
+
+            return response()->json(['booking' => $booking], 201);
+        }
+
+        if ($type === 'parking' && $request->parking_slot_id) {
+            $booking = \App\Models\ParkingBooking::create([
+                'user_id' => $userId,
+                'parking_slot_id' => $request->parking_slot_id,
+                'date' => now()->toDateString(),
+                'time_slot' => $request->time_slot ?? 'default',
+                'status' => 'pending',
+                'price' => $request->price ?? 0,
+            ]);
+
+            return response()->json(['booking' => $booking], 201);
+        }
+
+        return response()->json(['error' => 'Invalid booking request.'], 422);
     }
 
     public function get_stats(\Illuminate\Http\Request $request)
     {
         $category = $request->category ?? 'best_ride';
         $filter = $request->filter ?? 'month';
-        $labels = [];
-        $data = [];
-        $title = "";
-        $highlight = "";
+        $cacheKey = "analytics.stats.$category.$filter";
+        $payload = Cache::remember($cacheKey, 60, function () use ($category, $filter) {
+            $labels = [];
+            $data = [];
+            $title = "";
+            $highlight = "";
+            $confirmed = ['confirmed', 'accepted', 'booked'];
+            $countable = ['pending', 'confirmed', 'accepted', 'booked'];
 
-        // Determine date range
-        $start = now()->startOfMonth();
-        $end = now()->endOfMonth();
+            // Determine date range
+            $start = now()->startOfMonth();
+            $end = now()->endOfMonth();
 
-        if ($filter == 'year') {
-            $start = now()->startOfYear();
-            $end = now()->endOfYear();
-        } elseif ($filter == 'day') {
-            $start = now()->startOfDay();
-            $end = now()->endOfDay();
-        }
+            if ($filter == 'year') {
+                $start = now()->startOfYear();
+                $end = now()->endOfYear();
+            } elseif ($filter == 'day') {
+                $start = now()->startOfDay();
+                $end = now()->endOfDay();
+            }
 
-        switch ($category) {
-            case 'best_ride':
-                $stats = \App\Models\Booking::whereNotNull('ride_id')
-                    ->whereBetween('booking_date', [$start, $end])
-                    ->with('ride')
-                    ->get()
-                    ->groupBy('ride.name')
-                    ->map(fn($group) => $group->sum('quantity'))
-                    ->sortByDesc(fn($sum) => $sum);
+            switch ($category) {
+                case 'best_ride':
+                    $stats = \App\Models\Booking::whereNotNull('ride_id')
+                        ->whereIn('status', $countable)
+                        ->whereBetween('booking_date', [$start, $end])
+                        ->with('ride')
+                        ->get()
+                        ->groupBy('ride.name')
+                        ->map(fn($group) => $group->sum('quantity'))
+                        ->sortByDesc(fn($sum) => $sum);
 
-                $labels = $stats->keys()->toArray();
-                $data = $stats->values()->toArray();
-                $title = "Best Rides (" . ucfirst($filter) . ")";
-                $highlight = $stats->count() > 0 ? $stats->keys()->first() . " is the most popular ride!" : "No data available.";
-                break;
+                    $labels = $stats->keys()->toArray();
+                    $data = $stats->values()->toArray();
+                    $title = "Best Rides (" . ucfirst($filter) . ")";
+                    $highlight = $stats->count() > 0 ? $stats->keys()->first() . " is the most popular ride!" : "No data available.";
+                    break;
 
-            case 'best_room':
-                $stats = \App\Models\RoomBooking::whereBetween('created_at', [$start, $end])
-                    ->with('room')
-                    ->get()
-                    ->groupBy('room.room_number')
-                    ->map(fn($group) => $group->count())
-                    ->sortByDesc(fn($count) => $count);
+                case 'best_room':
+                    $stats = \App\Models\RoomBooking::whereBetween('created_at', [$start, $end])
+                        ->whereIn('status', $countable)
+                        ->with('room')
+                        ->get()
+                        ->groupBy('room.room_number')
+                        ->map(fn($group) => $group->count())
+                        ->sortByDesc(fn($count) => $count);
 
-                $labels = $stats->keys()->map(fn($n) => "Room $n")->toArray();
-                $data = $stats->values()->toArray();
-                $title = "Best Rooms (" . ucfirst($filter) . ")";
-                $highlight = $stats->count() > 0 ? "Room " . $stats->keys()->first() . " is the most booked room!" : "No data available.";
-                break;
+                    $labels = $stats->keys()->map(fn($n) => "Room $n")->toArray();
+                    $data = $stats->values()->toArray();
+                    $title = "Best Rooms (" . ucfirst($filter) . ")";
+                    $highlight = $stats->count() > 0 ? "Room " . $stats->keys()->first() . " is the most booked room!" : "No data available.";
+                    break;
 
-            case 'biggest_customer':
-                // Sum spending across all booking types
-                $entrySpending = \App\Models\Booking::whereBetween('booking_date', [$start, $end])->with('user')->get()->groupBy('user.name')->map->sum('total_price');
-                $roomSpending = \App\Models\RoomBooking::whereBetween('created_at', [$start, $end])->with('user')->get()->groupBy('user.name')->map->sum('total_price');
-                $dishSpending = \App\Models\DishBooking::whereBetween('booking_date', [$start, $end])->with('user')->get()->groupBy('user.name')->map->sum('total_price');
+                case 'biggest_customer':
+                    // Sum spending across all booking types
+                    $entrySpending = \App\Models\Booking::whereBetween('booking_date', [$start, $end])
+                        ->whereIn('status', $confirmed)
+                        ->with('user')
+                        ->get()
+                        ->groupBy('user.name')
+                        ->map->sum('total_price');
+                    $roomSpending = \App\Models\RoomBooking::whereBetween('created_at', [$start, $end])
+                        ->whereIn('status', $confirmed)
+                        ->with('user')
+                        ->get()
+                        ->groupBy('user.name')
+                        ->map->sum('total_price');
+                    $dishSpending = \App\Models\DishBooking::whereBetween('booking_date', [$start, $end])
+                        ->whereIn('status', $confirmed)
+                        ->with('user')
+                        ->get()
+                        ->groupBy('user.name')
+                        ->map->sum('total_price');
 
-                $stats = collect();
-                foreach ([$entrySpending, $roomSpending, $dishSpending] as $s) {
-                    foreach ($s as $name => $total) {
-                        $stats[$name] = ($stats[$name] ?? 0) + $total;
+                    $stats = collect();
+                    foreach ([$entrySpending, $roomSpending, $dishSpending] as $s) {
+                        foreach ($s as $name => $total) {
+                            $stats[$name] = ($stats[$name] ?? 0) + $total;
+                        }
                     }
-                }
-                $stats = $stats->sortByDesc(fn($v) => $v)->take(10);
+                    $stats = $stats->sortByDesc(fn($v) => $v)->take(10);
 
-                $labels = $stats->keys()->toArray();
-                $data = $stats->values()->toArray();
-                $title = "Top Customers (" . ucfirst($filter) . ")";
-                $highlight = $stats->count() > 0 ? $stats->keys()->first() . " is our biggest spender!" : "No data available.";
-                break;
+                    $labels = $stats->keys()->toArray();
+                    $data = $stats->values()->toArray();
+                    $title = "Top Customers (" . ucfirst($filter) . ")";
+                    $highlight = $stats->count() > 0 ? $stats->keys()->first() . " is our biggest spender!" : "No data available.";
+                    break;
 
-            case 'best_dish':
-                $stats = \App\Models\DishBooking::whereBetween('booking_date', [$start, $end])
-                    ->with('dish')
-                    ->get()
-                    ->groupBy('dish.name')
-                    ->map(fn($group) => $group->sum('quantity'))
-                    ->sortByDesc(fn($sum) => $sum);
+                case 'best_dish':
+                    $stats = \App\Models\DishBooking::whereBetween('booking_date', [$start, $end])
+                        ->whereIn('status', $countable)
+                        ->with('dish')
+                        ->get()
+                        ->groupBy('dish.name')
+                        ->map(fn($group) => $group->sum('quantity'))
+                        ->sortByDesc(fn($sum) => $sum);
 
-                $labels = $stats->keys()->toArray();
-                $data = $stats->values()->toArray();
-                $title = "Best Dishes (" . ucfirst($filter) . ")";
-                $highlight = $stats->count() > 0 ? $stats->keys()->first() . " is the most ordered dish!" : "No data available.";
-                break;
+                    $labels = $stats->keys()->toArray();
+                    $data = $stats->values()->toArray();
+                    $title = "Best Dishes (" . ucfirst($filter) . ")";
+                    $highlight = $stats->count() > 0 ? $stats->keys()->first() . " is the most ordered dish!" : "No data available.";
+                    break;
 
-            case 'crowdiest_day':
-                $stats = \App\Models\Booking::whereNotNull('ticket_type_id')
-                    ->whereBetween('booking_date', [$start, $end])
-                    ->get()
-                    ->groupBy(function ($date) {
-                        return \Carbon\Carbon::parse($date->booking_date)->format('Y-m-d');
-                    })
-                    ->map(fn($group) => $group->sum('quantity'))
-                    ->sortKeys();
+                case 'crowdiest_day':
+                    $rideCounts = \App\Models\Booking::whereBetween('booking_date', [$start, $end])
+                        ->whereIn('status', $countable)
+                        ->get()
+                        ->groupBy(fn($item) => \Carbon\Carbon::parse($item->booking_date)->format('Y-m-d'))
+                        ->map(fn($group) => $group->sum('quantity'));
 
-                $labels = $stats->keys()->toArray();
-                $data = $stats->values()->toArray();
-                $title = "Visitor Traffic (" . ucfirst($filter) . ")";
-                $highest = $stats->sortByDesc(fn($v) => $v);
-                $highlight = $stats->count() > 0 ? \Carbon\Carbon::parse($highest->keys()->first())->format('M d') . " was the crowdiest day with " . $highest->first() . " visitors!" : "No data available.";
-                break;
-        }
+                    $roomCounts = \App\Models\RoomBooking::whereBetween('created_at', [$start, $end])
+                        ->whereIn('status', $countable)
+                        ->get()
+                        ->groupBy(fn($item) => $item->created_at->format('Y-m-d'))
+                        ->map(fn($group) => $group->count());
 
-        return response()->json([
-            'labels' => $labels,
-            'data' => $data,
-            'title' => $title,
-            'highlight' => $highlight,
-        ]);
+                    $dishCounts = \App\Models\DishBooking::whereBetween('booking_date', [$start, $end])
+                        ->whereIn('status', $countable)
+                        ->get()
+                        ->groupBy(fn($item) => \Carbon\Carbon::parse($item->booking_date)->format('Y-m-d'))
+                        ->map(fn($group) => $group->sum('quantity'));
+
+                    $stats = collect();
+                    foreach ([$rideCounts, $roomCounts, $dishCounts] as $series) {
+                        foreach ($series as $date => $total) {
+                            $stats[$date] = ($stats[$date] ?? 0) + $total;
+                        }
+                    }
+
+                    $stats = $stats->sortKeys();
+                    $labels = $stats->keys()->toArray();
+                    $data = $stats->values()->toArray();
+                    $title = "Visitor Traffic (" . ucfirst($filter) . ")";
+                    $highest = $stats->sortByDesc(fn($v) => $v);
+                    $highlight = $stats->count() > 0 ? \Carbon\Carbon::parse($highest->keys()->first())->format('M d') . " was the crowdiest day with " . $highest->first() . " visitors!" : "No data available.";
+                    break;
+            }
+
+            return [
+                'labels' => $labels,
+                'data' => $data,
+                'title' => $title,
+                'highlight' => $highlight,
+            ];
+        });
+
+        return response()->json($payload);
     }
 
     public function update_profile(Request $request)

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ride;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -25,7 +26,7 @@ class RideController extends Controller
             'thrill_level' => 'required|integer|min:1|max:5',
         ]);
 
-        Ride::create([
+        $ride = Ride::create([
             'name' => $request->name,
             'ticket_uid' => $this->generateUniqueId(),
             'price' => $request->price,
@@ -35,6 +36,8 @@ class RideController extends Controller
             'thrill_level' => $request->thrill_level,
             'is_active' => true,
         ]);
+
+        AuditLogger::log('ride.created', $ride);
 
         return redirect()->route('admin.manage_rides')->with('success', 'Ride created successfully!');
     }
@@ -63,13 +66,26 @@ class RideController extends Controller
             return redirect()->route('admin.manage_rides')->with('info', 'No changes made.');
         }
 
+        AuditLogger::log('ride.updated', $ride);
+
         return redirect()->route('admin.manage_rides')->with('success', 'Ride updated successfully!');
     }
 
     public function destroy(Ride $ride)
     {
+        AuditLogger::log('ride.deleted', $ride);
         $ride->delete();
         return redirect()->route('admin.manage_rides')->with('success', 'Ride deleted successfully!');
+    }
+
+    public function apiIndex()
+    {
+        return response()->json(Ride::orderBy('name')->get());
+    }
+
+    public function apiShow(Ride $ride)
+    {
+        return response()->json($ride);
     }
 
     private function generateUniqueId()

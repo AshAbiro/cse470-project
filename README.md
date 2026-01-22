@@ -17,6 +17,10 @@ Open: `http://localhost:8000`
 - Build assets: `npm install` then `npm run build`
 - Dev assets (hot reload): `npm run dev`
 
+## API (v1)
+- Base path: `/api/v1`
+- Auth: Sanctum (`/sanctum/csrf-cookie` + login)
+
 ## Notes
 - Default DB is SQLite (see `.env`).
 - Seeded demo accounts (if you run the seeder) use password: `password`.

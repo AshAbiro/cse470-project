@@ -16,6 +16,31 @@
                 </a>
             </div>
 
+            @if(isset($summary))
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+                    <div class="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700">
+                        <p class="text-xs uppercase tracking-widest text-gray-400 font-bold">Total Users</p>
+                        <p class="text-3xl font-black text-gray-900 dark:text-white mt-2">{{ $summary['total_users'] ?? 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Staff: {{ $summary['total_staff'] ?? 0 }} · Clients: {{ $summary['total_clients'] ?? 0 }}</p>
+                    </div>
+                    <div class="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700">
+                        <p class="text-xs uppercase tracking-widest text-gray-400 font-bold">Total Revenue</p>
+                        <p class="text-3xl font-black text-gray-900 dark:text-white mt-2">BDT {{ number_format($summary['total_revenue'] ?? 0, 2) }}</p>
+                        <p class="text-xs text-gray-500 mt-1">This month: BDT {{ number_format($summary['monthly_revenue'] ?? 0, 2) }}</p>
+                    </div>
+                    <div class="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700">
+                        <p class="text-xs uppercase tracking-widest text-gray-400 font-bold">Bookings</p>
+                        <p class="text-3xl font-black text-gray-900 dark:text-white mt-2">{{ $summary['total_bookings'] ?? 0 }}</p>
+                        <p class="text-xs text-gray-500 mt-1">Pending: {{ $summary['pending_bookings'] ?? 0 }} · Confirmed: {{ $summary['confirmed_bookings'] ?? 0 }}</p>
+                    </div>
+                    <div class="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700">
+                        <p class="text-xs uppercase tracking-widest text-gray-400 font-bold">Occupancy & Rides</p>
+                        <p class="text-3xl font-black text-gray-900 dark:text-white mt-2">{{ $summary['occupancy_rate'] ?? 0 }}%</p>
+                        <p class="text-xs text-gray-500 mt-1">Active rides: {{ $summary['active_rides'] ?? 0 }} / {{ $summary['total_rides'] ?? 0 }}</p>
+                    </div>
+                </div>
+            @endif
+
             <!-- Analytics Dashboard Section -->
             <div
                 class="bg-white dark:bg-gray-800 overflow-hidden shadow-2xl sm:rounded-[2.5rem] border border-gray-100 dark:border-gray-700 animate-fade-in">

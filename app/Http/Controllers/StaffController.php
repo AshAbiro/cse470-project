@@ -7,6 +7,7 @@ use App\Models\RoomBooking;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Services\AuditLogger;
 
 class StaffController extends Controller
 {
@@ -122,6 +123,12 @@ class StaffController extends Controller
             'link' => route('client.booking-history'),
         ]);
 
+        AuditLogger::log('booking.accepted_by_staff', [
+            'type' => $type,
+            'booking_group_id' => $id,
+            'user_id' => $userId,
+        ]);
+
         return back()->with('success', 'Booking accepted and client notified!');
     }
 
@@ -188,6 +195,12 @@ class StaffController extends Controller
             'message' => $msg,
             'type' => 'danger',
             'link' => route('client.booking-history'),
+        ]);
+
+        AuditLogger::log('booking.rejected_by_staff', [
+            'type' => $type,
+            'booking_group_id' => $id,
+            'user_id' => $userId,
         ]);
 
         return back()->with('error', 'Booking rejected and client notified.');

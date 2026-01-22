@@ -196,6 +196,10 @@
                                          Details</th>
                                     <th class="p-6 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest">
                                          Status</th>
+                                    <th class="p-6 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest">
+                                         Priority</th>
+                                    <th class="p-6 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest">
+                                         Due</th>
                                     <th class="p-6 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest">Staff
                                          Response</th>
                                     <th class="p-6 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-widest">
@@ -235,6 +239,23 @@
                                                                     @if($task->completed_at)
                                                                         <p class="text-[9px] text-gray-400 font-bold mt-1 tracking-tighter">
                                                                             {{ $task->completed_at->diffForHumans() }}</p>
+                                                                    @endif
+                                                                </td>
+                                                                <td class="p-6">
+                                                                    <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest 
+                                                                            {{ $task->priority === 'urgent' ? 'bg-rose-100 text-rose-700' :
+                                    ($task->priority === 'high' ? 'bg-amber-100 text-amber-700' :
+                                        ($task->priority === 'low' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700')) }}">
+                                                                        {{ $task->priority ?? 'normal' }}
+                                                                    </span>
+                                                                </td>
+                                                                <td class="p-6">
+                                                                    @if($task->due_at)
+                                                                        <p class="text-xs font-bold text-gray-700 dark:text-gray-300">
+                                                                            {{ $task->due_at->format('M d, Y H:i') }}
+                                                                        </p>
+                                                                    @else
+                                                                        <span class="text-gray-300 dark:text-gray-600 italic text-xs">No due date</span>
                                                                     @endif
                                                                 </td>
                                                                 <td class="p-6 max-w-xs">
@@ -439,6 +460,26 @@
                                 </select>
                             </div>
 
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Priority</label>
+                                <select name="priority"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-red-500 focus:border-red-500 dark:text-white">
+                                    <option value="low">Low</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Due
+                                    Date</label>
+                                <input type="datetime-local" name="due_at"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-red-500 focus:border-red-500 dark:text-white">
+                            </div>
+
                             <button type="submit"
                                 class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl transition transform hover:-translate-y-1 shadow-lg shadow-red-100 uppercase tracking-widest">
                                 Send Repair Command
@@ -490,6 +531,26 @@
                                         </option>
                                     @endforeach
                                 </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Priority</label>
+                                <select name="priority"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-green-500 focus:border-green-500 dark:text-white">
+                                    <option value="low">Low</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Due
+                                    Date</label>
+                                <input type="datetime-local" name="due_at"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-green-500 focus:border-green-500 dark:text-white">
                             </div>
 
                             <button type="submit"
@@ -555,6 +616,26 @@
                                 </select>
                             </div>
 
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Priority</label>
+                                <select name="priority"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-amber-500 focus:border-amber-500 dark:text-white">
+                                    <option value="low">Low</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Due
+                                    Date</label>
+                                <input type="datetime-local" name="due_at"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-amber-500 focus:border-amber-500 dark:text-white">
+                            </div>
+
                             <button type="submit"
                                 class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 rounded-2xl transition transform hover:-translate-y-1 shadow-lg shadow-amber-100 uppercase tracking-widest">
                                 Send Room Cleaning Command
@@ -614,6 +695,26 @@
                                         </option>
                                     @endforeach
                                 </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Priority</label>
+                                <select name="priority"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 dark:text-white">
+                                    <option value="low">Low</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label
+                                    class="block text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest mb-2">Due
+                                    Date</label>
+                                <input type="datetime-local" name="due_at"
+                                    class="w-full bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 dark:text-white">
                             </div>
 
                             <button type="submit"

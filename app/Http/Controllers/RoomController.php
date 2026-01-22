@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Room;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -26,7 +27,7 @@ class RoomController extends Controller
             'image_path' => 'nullable|url',
         ]);
 
-        Room::create([
+        $room = Room::create([
             'ticket_uid' => $this->generateUniqueId(),
             'room_number' => $request->room_number,
             'floor' => $request->floor,
@@ -36,6 +37,8 @@ class RoomController extends Controller
             'rating' => $request->rating,
             'image_path' => $request->image_path ?? 'https://picsum.photos/seed/room' . $request->room_number . '/400/300',
         ]);
+
+        AuditLogger::log('room.created', $room);
 
         return redirect()->route('admin.nawab_palace')->with('success', 'Room created successfully!');
     }
@@ -66,13 +69,26 @@ class RoomController extends Controller
             return redirect()->route('admin.nawab_palace')->with('info', 'No changes made.');
         }
 
+        AuditLogger::log('room.updated', $room);
+
         return redirect()->route('admin.nawab_palace')->with('success', 'Room updated successfully!');
     }
 
     public function destroy(Room $room)
     {
+        AuditLogger::log('room.deleted', $room);
         $room->delete();
         return redirect()->route('admin.nawab_palace')->with('success', 'Room deleted successfully!');
+    }
+
+    public function apiIndex()
+    {
+        return response()->json(Room::orderBy('room_number')->get());
+    }
+
+    public function apiShow(Room $room)
+    {
+        return response()->json($room);
     }
 
     private function generateUniqueId()

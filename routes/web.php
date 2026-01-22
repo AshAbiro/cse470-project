@@ -41,6 +41,7 @@ Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
     'verified',
+    'role:client',
 ])->group(function () {
     Route::get('/dashboard', function () {
         return view('dashboard');
@@ -67,9 +68,11 @@ Route::middleware([
     });
 });
 
-Route::get('/home', [AdminController::class, 'index'])->name('home');
+Route::get('/home', [AdminController::class, 'index'])
+    ->middleware(['auth', 'role:admin'])
+    ->name('home');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'verified', 'role:admin'])->group(function () {
     Route::get('/admin/my-profile', [AdminController::class, 'my_profile'])->name('admin.my_profile');
     Route::post('/admin/my-profile', [AdminController::class, 'update_profile'])->name('admin.update_profile');
     Route::get('/admin/manage-rides', [\App\Http\Controllers\RideController::class, 'index'])->name('admin.manage_rides');
@@ -108,7 +111,7 @@ Route::get('/staff/login', function () {
     return view('staff.login');
 })->name('staff.login');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'verified', 'role:staff'])->group(function () {
     Route::get('/staff/dashboard', [\App\Http\Controllers\StaffController::class, 'dashboard'])->name('staff.dashboard');
     Route::get('/staff/requests', [\App\Http\Controllers\StaffController::class, 'requests'])->name('staff.requests');
     Route::post('/staff/accept-booking/{type}/{id}', [\App\Http\Controllers\StaffController::class, 'accept_booking'])->name('staff.accept_booking');

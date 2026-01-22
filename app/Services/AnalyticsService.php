@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Ride;
 use App\Models\Room;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class AnalyticsService
 {
@@ -17,20 +18,22 @@ class AnalyticsService
      */
     public function getDashboardStats()
     {
-        return [
-            'total_users' => User::count(),
-            'total_staff' => User::where('role', 'staff')->count(),
-            'total_clients' => User::where('role', 'client')->count(),
-            'total_rides' => Ride::count(),
-            'active_rides' => Ride::where('is_active', true)->count(),
-            'total_rooms' => Room::count(),
-            'total_bookings' => $this->getTotalBookings(),
-            'pending_bookings' => $this->getPendingBookings(),
-            'confirmed_bookings' => $this->getConfirmedBookings(),
-            'total_revenue' => $this->getTotalRevenue(),
-            'monthly_revenue' => $this->getMonthlyRevenue(),
-            'occupancy_rate' => $this->getOccupancyRate(),
-        ];
+        return Cache::remember('analytics.dashboard_stats', 60, function () {
+            return [
+                'total_users' => User::count(),
+                'total_staff' => User::where('role', 'staff')->count(),
+                'total_clients' => User::where('role', 'client')->count(),
+                'total_rides' => Ride::count(),
+                'active_rides' => Ride::where('is_active', true)->count(),
+                'total_rooms' => Room::count(),
+                'total_bookings' => $this->getTotalBookings(),
+                'pending_bookings' => $this->getPendingBookings(),
+                'confirmed_bookings' => $this->getConfirmedBookings(),
+                'total_revenue' => $this->getTotalRevenue(),
+                'monthly_revenue' => $this->getMonthlyRevenue(),
+                'occupancy_rate' => $this->getOccupancyRate(),
+            ];
+        });
     }
 
     /**
@@ -46,9 +49,11 @@ class AnalyticsService
      */
     public function getPendingBookings()
     {
-        return Booking::where('status', 'pending')->count() +
-               RoomBooking::where('status', 'pending')->count() +
-               DishBooking::where('status', 'pending')->count();
+        $pending = $this->pendingStatuses();
+
+        return Booking::whereIn('status', $pending)->count() +
+               RoomBooking::whereIn('status', $pending)->count() +
+               DishBooking::whereIn('status', $pending)->count();
     }
 
     /**
@@ -56,9 +61,11 @@ class AnalyticsService
      */
     public function getConfirmedBookings()
     {
-        return Booking::where('status', 'confirmed')->count() +
-               RoomBooking::where('status', 'confirmed')->count() +
-               DishBooking::where('status', 'confirmed')->count();
+        $confirmed = $this->confirmedStatuses();
+
+        return Booking::whereIn('status', $confirmed)->count() +
+               RoomBooking::whereIn('status', $confirmed)->count() +
+               DishBooking::whereIn('status', $confirmed)->count();
     }
 
     /**
@@ -66,9 +73,11 @@ class AnalyticsService
      */
     public function getTotalRevenue()
     {
-        return Booking::where('status', 'confirmed')->sum('total_price') +
-               RoomBooking::where('status', 'confirmed')->sum('total_price') +
-               DishBooking::where('status', 'confirmed')->sum('total_price');
+        $confirmed = $this->confirmedStatuses();
+
+        return Booking::whereIn('status', $confirmed)->sum('total_price') +
+               RoomBooking::whereIn('status', $confirmed)->sum('total_price') +
+               DishBooking::whereIn('status', $confirmed)->sum('total_price');
     }
 
     /**
@@ -77,15 +86,16 @@ class AnalyticsService
     public function getMonthlyRevenue($month = null)
     {
         $month = $month ?? now()->month;
+        $confirmed = $this->confirmedStatuses();
         
         return Booking::whereMonth('created_at', $month)
-                ->where('status', 'confirmed')
+                ->whereIn('status', $confirmed)
                 ->sum('total_price') +
                RoomBooking::whereMonth('created_at', $month)
-                ->where('status', 'confirmed')
+                ->whereIn('status', $confirmed)
                 ->sum('total_price') +
                DishBooking::whereMonth('created_at', $month)
-                ->where('status', 'confirmed')
+                ->whereIn('status', $confirmed)
                 ->sum('total_price');
     }
 
@@ -101,14 +111,16 @@ class AnalyticsService
             $date = now()->subDays($i)->format('Y-m-d');
             $dates[] = now()->subDays($i)->format('M d');
             
+            $confirmed = $this->confirmedStatuses();
+
             $revenue = Booking::whereDate('created_at', $date)
-                        ->where('status', 'confirmed')
+                        ->whereIn('status', $confirmed)
                         ->sum('total_price') +
                        RoomBooking::whereDate('created_at', $date)
-                        ->where('status', 'confirmed')
+                        ->whereIn('status', $confirmed)
                         ->sum('total_price') +
                        DishBooking::whereDate('created_at', $date)
-                        ->where('status', 'confirmed')
+                        ->whereIn('status', $confirmed)
                         ->sum('total_price');
             
             $revenues[] = $revenue;
@@ -130,9 +142,11 @@ class AnalyticsService
             return 0;
         }
 
-        $bookedRooms = RoomBooking::where('status', 'confirmed')
-            ->where('check_in_date', '<=', now())
-            ->where('check_out_date', '>=', now())
+        $confirmed = $this->confirmedStatuses();
+
+        $bookedRooms = RoomBooking::whereIn('status', $confirmed)
+            ->where('check_in_time', '<=', now())
+            ->where('check_out_time', '>=', now())
             ->distinct('room_id')
             ->count('room_id');
 
@@ -164,11 +178,21 @@ class AnalyticsService
             ->pluck('count', 'status');
 
         $results = [];
-        foreach (['pending', 'confirmed', 'cancelled', 'completed'] as $status) {
+        foreach (['pending', 'accepted', 'confirmed', 'booked', 'rejected', 'cancelled', 'completed'] as $status) {
             $results[$status] = ($rideBookings[$status] ?? 0) + ($roomBookings[$status] ?? 0);
         }
 
         return $results;
+    }
+
+    private function pendingStatuses(): array
+    {
+        return ['pending'];
+    }
+
+    private function confirmedStatuses(): array
+    {
+        return ['confirmed', 'accepted', 'booked'];
     }
 
     /**
